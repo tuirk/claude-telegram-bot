@@ -112,7 +112,7 @@ See [Claude Code permissions docs](https://docs.anthropic.com/en/docs/claude-cod
 ## Good to Know
 
 - **Your computer must stay on** — this is a remote control, not a cloud service
-- **No message history on restart** — session memory lives in Claude Code's session store; restarting the bot doesn't carry it over, but `/new` gives you a clean slate
+- **Sessions survive restarts** — session IDs are saved to `sessions.json`, so restarting the bot resumes where you left off. Use `/new` to start fresh
 - **Security** — messages pass through Telegram's servers. Don't send passwords, API keys, or secrets through the bot
 - **Typing indicator** — Telegram shows "typing..." while Claude works on a response
 - **Photos** — not supported yet (text only)

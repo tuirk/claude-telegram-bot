@@ -1,6 +1,6 @@
 import { Bot, Context } from "grammy";
 import { spawn } from "child_process";
-import { existsSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 import { randomUUID } from "crypto";
 
@@ -23,8 +23,26 @@ const bot = new Bot(TOKEN);
 // Track active Claude processes so user can cancel
 const activeJobs = new Map<number, { proc: ReturnType<typeof spawn>; aborted: boolean }>();
 
-// Track session IDs per chat for conversation continuity
-const sessions = new Map<number, string>();
+// Track session IDs per chat — persisted to disk so sessions survive restarts
+const SESSIONS_FILE = resolve(import.meta.dir, "sessions.json");
+
+function loadSessions(): Map<number, string> {
+  try {
+    if (existsSync(SESSIONS_FILE)) {
+      const data = JSON.parse(readFileSync(SESSIONS_FILE, "utf-8"));
+      return new Map(Object.entries(data).map(([k, v]) => [Number(k), v as string]));
+    }
+  } catch {}
+  return new Map();
+}
+
+function saveSessions(sessions: Map<number, string>) {
+  const obj: Record<string, string> = {};
+  for (const [k, v] of sessions) obj[String(k)] = v;
+  writeFileSync(SESSIONS_FILE, JSON.stringify(obj, null, 2));
+}
+
+const sessions = loadSessions();
 
 // --- Helpers ---
 function isAllowed(ctx: Context): boolean {
@@ -132,6 +150,7 @@ bot.command("pwd", async (ctx) => {
 bot.command("new", async (ctx) => {
   if (!isAllowed(ctx)) return;
   sessions.delete(ctx.chat.id);
+  saveSessions(sessions);
   await ctx.reply("Session cleared. Next message starts a fresh conversation.");
 });
 
@@ -150,6 +169,7 @@ bot.command("cd", async (ctx) => {
   workDir = resolved;
   // Reset session when changing directory since context changes
   sessions.delete(ctx.chat.id);
+  saveSessions(sessions);
   await ctx.reply(`Working dir: ${workDir}\nSession reset for new directory.`);
 });
 
@@ -186,6 +206,7 @@ bot.on("message:text", async (ctx) => {
   const isFirst = !sessions.has(chatId);
   if (isFirst) {
     sessions.set(chatId, randomUUID());
+    saveSessions(sessions);
   }
   const sessionId = sessions.get(chatId)!;
 
